@@ -105,8 +105,8 @@ A critical realization: `http.ResponseWriter` is an interface that implements `i
 
 ## 📝 Dev Log
 
-\<details\>
-\<summary\>\<strong\>Click to expand Daily Logs\</strong\>\</summary\>
+<details>
+<summary><strong>Click to expand Daily Logs</strong></summary>
 
 ### Day 1: The Connection ✅
 
@@ -132,7 +132,7 @@ A critical realization: `http.ResponseWriter` is an interface that implements `i
 
   * *Pending...*
 
-\</details\>
+</details>
 
 -----
 
