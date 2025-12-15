@@ -14,9 +14,9 @@ I am building this project over one week, adding new layers of complexity—from
       - [x] Basic Server Setup (`ListenAndServe`)
       - [x] Handlers: `http.HandlerFunc`, `http.ResponseWriter`
       - [x] Endpoint: `/health`
-  - [ ] **Day 2: Routing**
-      - [ ] Concepts: `http.ServeMux`, Pattern matching
-      - [ ] Implementation: Handling dynamic paths (e.g., `/users/{id}`)
+  - [x] **Day 2: Routing**
+      - [x] Concepts: `http.ServeMux`, Pattern matching
+      - [x] Implementation: Handling dynamic paths (e.g., `/users/{id}`)
   - [ ] **Day 3: Middleware**
       - [ ] Concepts: Decorator pattern, Higher-Order Functions
       - [ ] Implementation: Logging middleware, Panic recovery
@@ -39,7 +39,7 @@ I am building this project over one week, adding new layers of complexity—from
 
 ### Prerequisites
 
-  * [Go 1.20+](https://go.dev/dl/) installed on your machine.
+  * [Go 1.22+](https://go.dev/dl/) installed on your machine (required for wildcard routing features).
   * `curl` or a browser for testing endpoints.
 
 ### Quick Start
@@ -62,13 +62,26 @@ I am building this project over one week, adding new layers of complexity—from
 
     ```bash
     # Check server health
-    $ curl -i http://localhost:8080/health
-    HTTP/1.1 200 OK
-    Date: Mon, 01 Jan 2024 10:00:00 GMT
-    Content-Length: 13
-    Content-Type: text/plain; charset=utf-8
-
+    $ curl http://localhost:8081/health
     Server is UP!
+
+    # List endpoints
+    $ curl http://localhost:8081/users
+    User list
+
+    $ curl http://localhost:8081/posts
+    Post list
+
+    # Dynamic routing with IDs
+    $ curl http://localhost:8081/users/123
+    User detail: 123
+
+    $ curl http://localhost:8081/posts/456
+    Post detail: 456
+
+    # Error handling - invalid ID
+    $ curl http://localhost:8081/users/abc
+    Invalid id
     ```
 
 -----
@@ -95,7 +108,42 @@ A critical realization: `http.ResponseWriter` is an interface that implements `i
 
 ### **2. Multiplexers (`ServeMux`)**
 
-*Upcoming: Notes on how the DefaultServeMux works and why defining a custom Mux is better for production safety to avoid exposing global state.*
+`ServeMux` is Go's HTTP request multiplexer (router). It matches incoming requests to handlers based on URL patterns.
+
+**Key insights:**
+  * **DefaultServeMux vs Custom Mux:** Using `http.HandleFunc("/path", handler)` registers routes on the **global** `DefaultServeMux`. This is risky because any imported package can also register routes on it.
+  * **Production best practice:** Always create a custom `mux := http.NewServeMux()` and pass it to `ListenAndServe(":8080", mux)` to avoid global state pollution.
+  * **Pattern matching rules:**
+    - Exact match: `"/health"` only matches `/health`
+    - Prefix match: `"/users/"` matches `/users/`, `/users/123`, `/users/123/profile`, etc.
+    - Root pattern: `"/"` is a special case - it acts as a catch-all for any path that doesn't have a more specific handler
+  * **Longest match wins:** If multiple patterns could match, ServeMux chooses the most specific (longest) one. E.g., `/api/v1/status` takes precedence over `/api/`
+
+### **2.1. Go 1.22+ Enhanced Routing**
+
+Go 1.22 introduced **wildcard patterns** in ServeMux, making dynamic routing much cleaner without third-party libraries.
+
+**Key insights:**
+  * **Wildcard syntax:** `/users/{id}` captures the dynamic segment as a named parameter
+  * **`PathValue()` method:** `r.PathValue("id")` extracts the captured segment directly - no manual string parsing needed!
+  * **Before Go 1.22:** You had to use prefix patterns (`/users/`) and manually parse with `strings.TrimPrefix()` or `strings.Split()`
+  * **Pattern specificity:** `/users/{id}` is more specific than `/users/`, so it takes precedence
+  * **Wildcard limitations:** Wildcards match any non-empty segment but not slashes (e.g., `{id}` matches "123" but not "123/profile")
+
+**Example:**
+```go
+// Go 1.22+ way
+mux.HandleFunc("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+    id := r.PathValue("id")  // Clean extraction!
+    fmt.Fprintf(w, "User ID: %s", id)
+})
+
+// Pre-1.22 way
+mux.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
+    id := strings.TrimPrefix(r.URL.Path, "/users/")  // Manual parsing
+    fmt.Fprintf(w, "User ID: %s", id)
+})
+```
 
 ### **3. Middleware Chaining**
 
@@ -105,8 +153,8 @@ A critical realization: `http.ResponseWriter` is an interface that implements `i
 
 ## 📝 Dev Log
 
-<details>
-<summary><strong>Click to expand Daily Logs</strong></summary>
+<details\>
+\<summary\>\<strong\>Click to expand Daily Logs\</strong\>\</summary\>
 
 ### Day 1: The Connection ✅
 
@@ -124,15 +172,34 @@ A critical realization: `http.ResponseWriter` is an interface that implements `i
       * Realizing that the "/" pattern in `ServeMux` acts as a catch-all for any unknown route.
       * Understanding that `fmt.Fprintf(w, ...)` writes to the HTTP response (client sees it), not the console.
 
-### Day 2: Routing
+### Day 2: Routing ✅
 
-  * *Pending...*
+  * **Progress:** Implemented custom ServeMux with static and dynamic routing using Go 1.22+ wildcard patterns.
+  * **Endpoints Implemented:** 
+      * Static: `/users`, `/posts`
+      * Dynamic: `/users/{id}`, `/posts/{id}`
+  * **Key Learnings:**
+      * **Custom ServeMux vs DefaultServeMux:** Created isolated router with `http.NewServeMux()` to avoid global state pollution. Production-safe pattern that prevents imported packages from registering unexpected routes.
+      * **Go 1.22's wildcard routing:** Native support for `/path/{param}` syntax eliminates need for third-party routers. The `r.PathValue("param")` method extracts captured segments cleanly.
+      * **Pattern matching precedence:** ServeMux uses "longest match wins" - more specific patterns take priority (e.g., `/users/{id}` beats `/users/`).
+      * **DRY principles in action:** Created reusable `extractID()` helper function to avoid duplicating validation logic across handlers.
+      * **Validation layers:** Implemented both empty-check and numeric validation for IDs. Returns appropriate HTTP status codes (400 Bad Request for invalid input).
+      * **Type safety matters:** Helper returns `int` instead of `string` for IDs, catching non-numeric input early with `strconv.Atoi()`.
+  * **Challenges Solved:**
+      * Understanding when to use exact match (`/users`) vs prefix match (`/users/`) patterns.
+      * Extracting and validating dynamic path segments without regex.
+      * Building reusable validation logic that works across multiple endpoints.
+      * Deciding between manual string parsing vs Go 1.22's native wildcards.
+  * **Code Quality Improvements:**
+      * Extracted common logic into helper functions
+      * Consistent error handling across all dynamic routes
+      * Proper HTTP status codes for different error scenarios
 
 ### Day 3: Middleware
 
   * *Pending...*
 
-</details>
+\</details\>
 
 -----
 
