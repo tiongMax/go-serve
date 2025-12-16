@@ -17,9 +17,9 @@ I am building this project over one week, adding new layers of complexity—from
   - [x] **Day 2: Routing**
       - [x] Concepts: `http.ServeMux`, Pattern matching
       - [x] Implementation: Handling dynamic paths (e.g., `/users/{id}`)
-  - [ ] **Day 3: Middleware**
-      - [ ] Concepts: Decorator pattern, Higher-Order Functions
-      - [ ] Implementation: Logging middleware, Panic recovery
+  - [x] **Day 3: Middleware**
+      - [x] Concepts: Decorator pattern, Higher-Order Functions
+      - [x] Implementation: Logging middleware, Panic recovery
   - [ ] **Day 4: Data Interchange (JSON)**
       - [ ] Concepts: `encoding/json`, Struct tags, Content-Type headers
       - [ ] Implementation: JSON Request/Response helpers
@@ -54,8 +54,10 @@ I am building this project over one week, adding new layers of complexity—from
 2.  **Run the server:**
 
     ```bash
-    go run main.go
+    go run .
     ```
+    
+    *Or specify all files:* `go run main.go handler.go middleware.go helper.go`
 
 3.  **Test the endpoints:**
     Open a new terminal and run:
@@ -147,14 +149,84 @@ mux.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
 
 ### **3. Middleware Chaining**
 
-*Upcoming: Notes on wrapping handlers to intercept requests before they reach the core logic (onion architecture).*
+Middleware in Go implements the **decorator pattern** - wrapping handlers to add cross-cutting concerns without modifying the core business logic.
+
+**Key insights:**
+  * **Higher-Order Functions:** Middleware is a function that takes a handler and returns a new handler with added behavior
+  * **Function signature:** `func(http.HandlerFunc) http.HandlerFunc` - takes a handler, returns a wrapped handler
+  * **Closures:** The returned function "closes over" the original handler, maintaining access to it
+  * **Execution flow (onion model):** Request flows through layers in order, then response flows back in reverse
+  * **Order matters:** Outer middleware wraps inner middleware - panic recovery should be outermost to catch all errors
+
+**Example pattern:**
+```go
+func loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        // Code BEFORE handler (on request)
+        start := time.Now()
+        
+        next(w, r)  // Call the wrapped handler
+        
+        // Code AFTER handler (on response)
+        duration := time.Since(start)
+        log.Printf("Request: %s %s - %v", r.Method, r.URL.Path, duration)
+    }
+}
+```
+
+### **3.1. Panic Recovery with `defer` and `recover()`**
+
+Go's panic recovery mechanism prevents a single handler crash from bringing down the entire server.
+
+**Key insights:**
+  * **`defer` keyword:** Deferred functions execute after the surrounding function returns (or panics)
+  * **`recover()` built-in:** Only works inside `defer` - catches panics and returns the panic value
+  * **Returns `nil` if no panic:** Always check `if err := recover(); err != nil` before acting
+  * **LIFO execution:** Multiple defers execute in reverse order (last-in, first-out)
+  * **Production safety:** Panic recovery is essential - prevents cascading failures from affecting other requests
+
+**Example pattern:**
+```go
+func panicRecoveryMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        defer func() {
+            if err := recover(); err != nil {
+                log.Printf("PANIC: %v", err)
+                http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+            }
+        }()
+        next(w, r)
+    }
+}
+```
+
+### **3.2. Middleware Composition**
+
+Chaining multiple middlewares requires understanding execution order and proper composition.
+
+**Key insights:**
+  * **Nesting order:** `panicRecovery(logging(handler))` means panic recovery wraps logging, which wraps handler
+  * **Execution flow:** Request → Panic Recovery → Logging → Handler → Logging → Panic Recovery → Response
+  * **Composition helper:** Create a `WithDefaults()` function to apply standard middleware stack consistently
+  * **Best practice:** Panic recovery should be outermost layer to catch errors from all inner layers
+  * **Reusability:** Define middleware once, apply to all routes for consistent behavior
+
+**Example pattern:**
+```go
+func WithDefaults(handler http.HandlerFunc) http.HandlerFunc {
+    return panicRecoveryMiddleware(loggingMiddleware(handler))
+}
+
+// Usage
+mux.HandleFunc("/health", WithDefaults(healthHandler))
+```
 
 -----
 
 ## 📝 Dev Log
 
-<details\>
-\<summary\>\<strong\>Click to expand Daily Logs\</strong\>\</summary\>
+<details>
+<summary><strong>Click to expand Daily Logs</strong></summary>
 
 ### Day 1: The Connection ✅
 
@@ -195,11 +267,32 @@ mux.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
       * Consistent error handling across all dynamic routes
       * Proper HTTP status codes for different error scenarios
 
-### Day 3: Middleware
+### Day 3: Middleware ✅
 
-  * *Pending...*
+  * **Progress:** Implemented production-ready middleware system with logging and panic recovery. Refactored codebase into clean, modular structure.
+  * **Middleware Implemented:**
+      * Logging middleware (request method, path, duration)
+      * Panic recovery middleware (catches crashes, prevents server shutdown)
+      * `WithDefaults()` composition helper (applies standard middleware stack)
+  * **Key Learnings:**
+      * **Decorator pattern in action:** Middleware wraps handlers like onion layers, each adding specific behavior without modifying core logic.
+      * **Higher-Order Functions:** Functions that take functions and return functions - the signature `func(http.HandlerFunc) http.HandlerFunc` is the key pattern.
+      * **Closures are powerful:** The returned function maintains access to the original handler through closure scope.
+      * **`defer` and `recover()` mechanism:** Deferred functions run after panics, and `recover()` catches them - but only works inside `defer`.
+      * **Middleware order is critical:** Panic recovery must be outermost layer to catch errors from all inner layers. The pattern is `panicRecovery(logging(handler))`.
+  * **Challenges Solved:**
+      * Understanding function closure mechanics - how the returned function "remembers" the `next` handler.
+      * Getting middleware execution order right - visualizing the onion model helped (request flows in, response flows out).
+      * Realizing `recover()` only works inside `defer` - tried calling it directly at first.
+      * Deciding on middleware composition strategy - created `WithDefaults()` for DRY principles.
+  * **Code Quality Improvements:**
+      * Refactored handlers into separate file for better organization
+      * Created reusable middleware composition function
+      * All routes now protected by panic recovery
+      * Consistent logging across all endpoints
+      * Enhanced panic logs with request context (method, path)
 
-\</details\>
+</details>
 
 -----
 
@@ -207,10 +300,10 @@ mux.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
 
 ```text
 .
-├── main.go           # Entry point: Server configuration and startup
+├── main.go           # Entry point: Server configuration and route registration
+├── handler.go        # HTTP handlers: Business logic for each endpoint
+├── middleware.go     # Middleware: Logging, panic recovery, composition helpers
+├── helper.go         # Utility functions: Validation, parsing, etc.
 ├── go.mod            # Go module definition
-├── handlers.go       # (Future) HTTP handler logic
-├── middleware.go     # (Future) Logging and Auth layers
-├── README.md         # Documentation
-└── ...               # (Future) Internal packages
+└── README.md         # Documentation
 ```
