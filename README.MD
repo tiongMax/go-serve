@@ -20,9 +20,9 @@ I am building this project over one week, adding new layers of complexity—from
   - [x] **Day 3: Middleware**
       - [x] Concepts: Decorator pattern, Higher-Order Functions
       - [x] Implementation: Logging middleware, Panic recovery
-  - [ ] **Day 4: Data Interchange (JSON)**
-      - [ ] Concepts: `encoding/json`, Struct tags, Content-Type headers
-      - [ ] Implementation: JSON Request/Response helpers
+  - [x] **Day 4: Data Interchange (JSON)**
+      - [x] Concepts: `encoding/json`, Struct tags, Content-Type headers
+      - [x] Implementation: JSON Request/Response helpers
   - [ ] **Day 5: RESTful Methods**
       - [ ] Concepts: GET vs POST vs PUT vs DELETE, HTTP Status Codes
       - [ ] Implementation: CRUD operations on an in-memory store
@@ -57,7 +57,7 @@ I am building this project over one week, adding new layers of complexity—from
     go run .
     ```
     
-    *Or specify all files:* `go run main.go handler.go middleware.go helper.go`
+    *Or specify all files:* `go run main.go handler.go middleware.go helper.go model.go`
 
 3.  **Test the endpoints:**
     Open a new terminal and run:
@@ -65,25 +65,29 @@ I am building this project over one week, adding new layers of complexity—from
     ```bash
     # Check server health
     $ curl http://localhost:8081/health
-    Server is UP!
+    {"status":"UP"}
 
     # List endpoints
     $ curl http://localhost:8081/users
-    User list
+    [{"id":1,"name":"Alice","email":"alice@example.com"},{"id":2,"name":"Bob","email":"bob@example.com"}]
 
     $ curl http://localhost:8081/posts
-    Post list
+    [{"id":1,"title":"First Post","content":"Hello world","author":"Alice"},{"id":2,"title":"Go is great","content":"Concurrency is fun","author":"Bob"}]
+
+    # Create a user (POST)
+    $ curl -X POST http://localhost:8081/users -d '{"name": "John", "email": "john@example.com"}'
+    {"id":101,"name":"John","email":"john@example.com"}
 
     # Dynamic routing with IDs
     $ curl http://localhost:8081/users/123
-    User detail: 123
+    {"id":123,"name":"User 123","email":"user123@example.com"}
 
     $ curl http://localhost:8081/posts/456
-    Post detail: 456
+    {"id":456,"title":"Post 456","content":"Some content here...","author":"Unknown"}
 
     # Error handling - invalid ID
     $ curl http://localhost:8081/users/abc
-    Invalid id
+    {"error":"invalid id"}
     ```
 
 -----
@@ -221,6 +225,22 @@ func WithDefaults(handler http.HandlerFunc) http.HandlerFunc {
 mux.HandleFunc("/health", WithDefaults(healthHandler))
 ```
 
+### **4. JSON Data Interchange**
+
+Handling JSON in Go requires understanding the `encoding/json` package and how Go's type system interacts with JSON data.
+
+**Key insights:**
+  * **Marshaling vs Encoding:**
+    - `json.Marshal(v)`: Returns `[]byte`. Great for small objects or when you need the byte slice.
+    - `json.NewEncoder(w).Encode(v)`: Writes directly to an `io.Writer` (stream). More memory efficient for HTTP responses but if header has sent and the encoding process fails halfway,
+    the status code can't be updated anymore.
+  * **Unmarshaling vs Decoding:**
+    - `json.Unmarshal(data, &v)`: Parses `[]byte` into a struct.
+    - `json.NewDecoder(r.Body).Decode(&v)`: Reads directly from `io.Reader` (stream). Best for HTTP request bodies.
+  * **Struct Tags:** You control JSON output using tags like `json:"user_id,omitempty"`. Without tags, fields use their Go struct names.
+  * **Exported Fields:** Only Capitalized fields are visible to the JSON encoder. Lowercase fields are ignored!
+  * **Strict Decoding:** `decoder.DisallowUnknownFields()` is crucial for APIs to prevent clients from sending unexpected data silently.
+
 -----
 
 ## 📝 Dev Log
@@ -292,6 +312,21 @@ mux.HandleFunc("/health", WithDefaults(healthHandler))
       * Consistent logging across all endpoints
       * Enhanced panic logs with request context (method, path)
 
+### Day 4: Data Interchange (JSON) ✅
+
+  * **Progress:** Implemented full JSON support for requests and responses. Created reusable helpers and standardized error handling.
+  * **New Features:**
+      * `model.go` with struct definitions and JSON tags
+      * `writeJSON` helper for consistent response formatting
+      * `readJSON` helper for safe request parsing
+      * Standardized error response format (`{"error": "message"}`)
+      * Strict HTTP method matching (GET vs POST)
+  * **Key Learnings:**
+      * **Streaming JSON:** Using `json.NewEncoder` and `json.NewDecoder` is more efficient for HTTP than `Marshal/Unmarshal` because it works with streams (`io.Writer`/`io.Reader`).
+      * **Content Negotiation:** Always setting `Content-Type: application/json` tells the client what to expect.
+      * **Struct Tags:** Controlling how Go fields map to JSON keys (e.g., `Name` -> `"name"`).
+      * **Strict Decoding:** `DisallowUnknownFields()` prevents clients from sending garbage data.
+      * **Method Specificity:** Go 1.22 allows specifying methods in routes (`POST /users`), which simplifies handler logic significantly.
 </details>
 
 -----
@@ -303,7 +338,8 @@ mux.HandleFunc("/health", WithDefaults(healthHandler))
 ├── main.go           # Entry point: Server configuration and route registration
 ├── handler.go        # HTTP handlers: Business logic for each endpoint
 ├── middleware.go     # Middleware: Logging, panic recovery, composition helpers
-├── helper.go         # Utility functions: Validation, parsing, etc.
+├── helper.go         # Utility functions: JSON helpers, validation, etc.
+├── model.go          # Data models: Struct definitions
 ├── go.mod            # Go module definition
 └── README.md         # Documentation
 ```
