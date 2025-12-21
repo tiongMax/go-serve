@@ -20,7 +20,7 @@ func panicRecoveryMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		defer func() {
 			if err := recover(); err != nil {
 				log.Printf("PANIC recovered: %v | Method: %s | Path: %s", err, r.Method, r.URL.Path)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				writeError(w, http.StatusInternalServerError, "Internal Server Error")
 			}
 		}()
 		next(w, r)
