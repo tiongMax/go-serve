@@ -23,9 +23,9 @@ I am building this project over one week, adding new layers of complexity—from
   - [x] **Day 4: Data Interchange (JSON)**
       - [x] Concepts: `encoding/json`, Struct tags, Content-Type headers
       - [x] Implementation: JSON Request/Response helpers
-  - [ ] **Day 5: RESTful Methods**
-      - [ ] Concepts: GET vs POST vs PUT vs DELETE, HTTP Status Codes
-      - [ ] Implementation: CRUD operations on an in-memory store
+  - [x] **Day 5: RESTful Methods**
+      - [x] Concepts: GET vs POST vs PUT vs DELETE, HTTP Status Codes
+      - [x] Implementation: CRUD operations on an in-memory store
   - [ ] **Day 6: Context & Concurrency**
       - [ ] Concepts: `context.Context`, Timeout management, Cancellation
       - [ ] Implementation: Simulating slow processes, request timeouts
@@ -327,6 +327,19 @@ Handling JSON in Go requires understanding the `encoding/json` package and how G
       * **Struct Tags:** Controlling how Go fields map to JSON keys (e.g., `Name` -> `"name"`).
       * **Strict Decoding:** `DisallowUnknownFields()` prevents clients from sending garbage data.
       * **Method Specificity:** Go 1.22 allows specifying methods in routes (`POST /users`), which simplifies handler logic significantly.
+
+### Day 5: RESTful Methods ✅
+
+  * **Progress:** Transformed mock endpoints into a fully functional CRUD API with in-memory persistence.
+  * **New Features:**
+      * `store.go` for global in-memory state
+      * `PUT /users/{id}` for updates
+      * `DELETE /users/{id}` for removal
+      * Dynamic ID generation to prevent collisions
+  * **Key Learnings:**
+      * **Slice Modification Pitfall:** Iterating with `for _, u := range users` gives a *copy* of the struct. To modify the actual data, you must use the index: `users[i].Name = ...`.
+      * **Slice Deletion:** Removing an item from a slice is a specific Go idiom: `users = append(users[:i], users[i+1:]...)`.
+
 </details>
 
 -----
