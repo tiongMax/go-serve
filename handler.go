@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -20,18 +19,10 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func userListHandler(w http.ResponseWriter, r *http.Request) {
-	users := []User{
-		{ID: 1, Name: "Alice", Email: "alice@example.com"},
-		{ID: 2, Name: "Bob", Email: "bob@example.com"},
-	}
 	writeJSON(w, http.StatusOK, users)
 }
 
 func postListHandler(w http.ResponseWriter, r *http.Request) {
-	posts := []Post{
-		{ID: 1, Title: "First Post", Content: "Hello world", Author: "Alice"},
-		{ID: 2, Title: "Go is great", Content: "Concurrency is fun", Author: "Bob"},
-	}
 	writeJSON(w, http.StatusOK, posts)
 }
 
@@ -41,13 +32,15 @@ func userDetailHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// Mock finding a user
-	user := User{
-		ID:    id,
-		Name:  fmt.Sprintf("User %d", id),
-		Email: fmt.Sprintf("user%d@example.com", id),
+
+	for _, u := range users {
+		if u.ID == id {
+			writeJSON(w, http.StatusOK, u)
+			return
+		}
 	}
-	writeJSON(w, http.StatusOK, user)
+
+	writeError(w, http.StatusNotFound, "User not found")
 }
 
 func createUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -63,8 +56,17 @@ func createUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mock creation - assign an ID
-	user.ID = 101 // Simulated DB ID
+	// Find max ID to auto-increment
+	maxID := 0
+	for _, u := range users {
+		if u.ID > maxID {
+			maxID = u.ID
+		}
+	}
+	user.ID = maxID + 1
+
+	// Store in memory
+	users = append(users, user)
 
 	writeJSON(w, http.StatusCreated, user)
 }
@@ -75,12 +77,56 @@ func postDetailHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// Mock finding a post
-	post := Post{
-		ID:      id,
-		Title:   fmt.Sprintf("Post %d", id),
-		Content: "Some content here...",
-		Author:  "Unknown",
+
+	for _, p := range posts {
+		if p.ID == id {
+			writeJSON(w, http.StatusOK, p)
+			return
+		}
 	}
-	writeJSON(w, http.StatusOK, post)
+
+	writeError(w, http.StatusNotFound, "Post not found")
+}
+
+func updateUserHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := extractID(r, "id")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	for i, u := range users {
+		if u.ID == id {
+			var updatedUser User
+			if err := readJSON(r, &updatedUser); err != nil {
+				writeError(w, http.StatusBadRequest, "Invalid JSON body")
+				return
+			}
+
+			// Update the actual slice element using index
+			users[i].Name = updatedUser.Name
+			users[i].Email = updatedUser.Email
+
+			writeJSON(w, http.StatusOK, users[i])
+			return
+		}
+	}
+
+	writeError(w, http.StatusNotFound, "User not found")
+}
+
+func deleteUserHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := extractID(r, "id")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	for i, u := range users {
+		if u.ID == id {
+			users = append(users[:i], users[i+1:]...)
+			writeJSON(w, http.StatusOK, map[string]string{"message": "User deleted"})
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "User not found")
 }

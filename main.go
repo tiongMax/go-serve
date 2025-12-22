@@ -14,10 +14,12 @@ func main() {
 	mux.HandleFunc("GET /users", WithDefaults(userListHandler))
 	mux.HandleFunc("POST /users", WithDefaults(createUserHandler))
 	mux.HandleFunc("GET /users/{id}", WithDefaults(userDetailHandler))
+	mux.HandleFunc("PUT /users/{id}", WithDefaults(updateUserHandler))
+	mux.HandleFunc("DELETE /users/{id}", WithDefaults(deleteUserHandler))
 
 	mux.HandleFunc("GET /posts", WithDefaults(postListHandler))
 	mux.HandleFunc("GET /posts/{id}", WithDefaults(postDetailHandler))
 
 	log.Println("🚀 Server starting on http://localhost:8081")
-	log.Fatal(http.ListenAndServe(":8081", mux))
+	log.Fatal(http.ListenAndServe(":8083", mux))
 }
